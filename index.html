@@ -17,40 +17,39 @@
   <header>
     <h1>Картографический редактор для гольф‑поля</h1>
     <div class="controls">
-      <button id="cut-area" class="btn">Вырезать участок</button>
-      <button id="save-png" class="btn">Сохранить как PNG</button>
+      <button id="cut-area" class="btn">Вырезать участок (2 клика)</button>
+      <button id="save-png" class="btn" disabled>Сохранить как PNG</button>
     </div>
   </header>
   <main>
     <div id="map"></div>
   </main>
-  <div id="temp-export-container" style="position: fixed; top: -9999px; left: -9999px; width: 800px; height: 600px;"></div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script>
     let globalRectangle = null;
     let exportMapInstance = null;
+    let selectionComplete = false; // Флаг завершения выделения
 
     function initCutAreaFunctionality(map) {
       const cutAreaBtn = document.getElementById('cut-area');
+      const saveBtn = document.getElementById('save-png');
       let isDrawing = false;
       let firstCorner = null;
 
       cutAreaBtn.addEventListener('click', function() {
-        if (isDrawing) {
-          isDrawing = false;
-          firstCorner = null;
-          cutAreaBtn.textContent = 'Вырезать участок';
-          if (globalRectangle) {
-            map.removeLayer(globalRectangle);
-            globalRectangle = null;
-          }
-          return;
+        isDrawing = true;
+        firstCorner = null;
+        selectionComplete = false;
+        saveBtn.disabled = true;
+
+        if (globalRectangle) {
+          map.removeLayer(globalRectangle);
+          globalRectangle = null;
         }
 
-        isDrawing = true;
-        cutAreaBtn.textContent = 'Завершить выделение';
+        cutAreaBtn.textContent = 'Кликните 1‑й угол → 2‑й угол';
         alert('Кликните на карте для установки первого угла прямоугольника');
       });
 
@@ -59,42 +58,40 @@
 
         if (!firstCorner) {
           firstCorner = e.latlng;
+          alert('Теперь кликните для установки второго угла прямоугольника');
           return;
         }
 
         const secondCorner = e.latlng;
-        if (globalRectangle) map.removeLayer(globalRectangle);
 
+        // Создаём прямоугольник
         globalRectangle = L.rectangle([
           [firstCorner.lat, firstCorner.lng],
           [secondCorner.lat, secondCorner.lng]
         ], {
           color: '#FF0000',
-          weight: 2,
-          fillOpacity: 0.1
+          weight: 3,
+          fillOpacity: 0.2
         }).addTo(map);
 
         isDrawing = false;
-        firstCorner = null;
-        cutAreaBtn.textContent = 'Вырезать участок';
+        selectionComplete = true;
+        saveBtn.disabled = false;
+        cutAreaBtn.textContent = 'Вырезать участок (2 клика)';
+        alert('Участок выделен! Нажмите "Сохранить как PNG" для скачивания.');
       });
     }
 
     async function saveMapAsPNG(map) {
-      if (!globalRectangle) {
-        alert('Сначала выделите участок на карте!');
+      if (!selectionComplete || !globalRectangle) {
+        alert('Сначала выделите участок на карте (2 клика)!');
         return;
       }
 
       const bounds = globalRectangle.getBounds();
-      const tempContainer = document.getElementById('temp-export-container');
-
-      if (exportMapInstance) {
-        exportMapInstance.remove();
-        exportMapInstance = null;
-      }
-      tempContainer.innerHTML = '';
-      tempContainer.style.display = 'block';
+      const tempContainer = document.createElement('div');
+      tempContainer.style.cssText = 'position: fixed; top: -9999px; left: -9999px; width: 800px; height: 600px;';
+      document.body.appendChild(tempContainer);
 
       try {
         exportMapInstance = L.map(tempContainer, {
@@ -108,20 +105,18 @@
         });
 
         L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(exportMapInstance);
-        exportMapInstance.fitBounds(bounds, { padding: [10, 10] });
+        exportMapInstance.fitBounds(bounds, { padding: [20, 20] });
 
         exportMapInstance.once('tileloadcomplete', async function() {
           setTimeout(async function() {
             try {
+              exportMapInstance.invalidateSize();
               const canvas = await html2canvas(tempContainer, {
-                scale: 1,
+                scale: 2,
                 useCORS: true,
-                logging: false,
                 backgroundColor: '#ffffff',
                 windowWidth: 800,
-                windowHeight: 600,
-                allowTaint: true,
-                preferCanvas: true
+                windowHeight: 600
               });
 
               canvas.toBlob((blob) => {
@@ -138,28 +133,29 @@
                 } else {
                   alert('Не удалось сохранить изображение');
                 }
-                if (exportMapInstance) {
-                  exportMapInstance.remove();
-                  exportMapInstance = null;
-                }
-                tempContainer.style.display = 'none';
+                cleanup();
               }, 'image/png');
             } catch (canvasError) {
               console.error('Ошибка при создании canvas:', canvasError);
               alert('Ошибка при создании изображения: ' + canvasError.message);
-              if (exportMapInstance) {
-                exportMapInstance.remove();
-                exportMapInstance = null;
-              }
-              tempContainer.style.display = 'none';
+              cleanup();
             }
-          }, 2000);
+          }, 1000);
         });
       } catch (error) {
         console.error('Ошибка при инициализации временной карты:', error);
         alert('Ошибка при сохранении: ' + error.message);
-        tempContainer.style.display = 'none';
+        cleanup();
       }
+    }
+
+    function cleanup() {
+      if (exportMapInstance) {
+        exportMapInstance.remove();
+        exportMapInstance = null;
+      }
+      const tempContainers = document.querySelectorAll('[style*="top: -9999px"]');
+      tempContainers.forEach(el => el.remove());
     }
 
     document.addEventListener('DOMContentLoaded', function() {
