@@ -48,6 +48,16 @@ function initCutAreaFunctionality(map) {
   });
 }
 
+// Упрощённая функция загрузки изображения — заглушка без функционала
+function initLoadImageFunctionality() {
+  const loadImageBtn = document.getElementById('load-image');
+  if (loadImageBtn) {
+    loadImageBtn.addEventListener('click', function() {
+      alert('Функция загрузки карты пока не реализована');
+    });
+  }
+}
+
 async function saveMapAsPNG(map) {
   if (!globalRectangle) {
     alert('Сначала выделите участок на карте!');
@@ -127,5 +137,6 @@ document.addEventListener('DOMContentLoaded', function() {
   }).addTo(map);
 
   initCutAreaFunctionality(map);
+  initLoadImageFunctionality(); // Инициализация кнопки загрузки
   document.getElementById('save-png').addEventListener('click', () => saveMapAsPNG(map));
 });
