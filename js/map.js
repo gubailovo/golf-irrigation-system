@@ -1,4 +1,6 @@
 let globalRectangle = null;
+let exportMapInstance = null; // Храним ссылку на временную карту
+
 
 function initCutAreaFunctionality(map) {
   const cutAreaBtn = document.getElementById('cut-area');
@@ -48,16 +50,6 @@ function initCutAreaFunctionality(map) {
   });
 }
 
-// Упрощённая функция загрузки изображения — заглушка без функционала
-function initLoadImageFunctionality() {
-  const loadImageBtn = document.getElementById('load-image');
-  if (loadImageBtn) {
-    loadImageBtn.addEventListener('click', function() {
-      alert('Функция загрузки карты пока не реализована');
-    });
-  }
-}
-
 async function saveMapAsPNG(map) {
   if (!globalRectangle) {
     alert('Сначала выделите участок на карте!');
@@ -67,67 +59,83 @@ async function saveMapAsPNG(map) {
   const bounds = globalRectangle.getBounds();
   const tempContainer = document.getElementById('temp-export-container');
 
-  // Очищаем контейнер
+  // Очищаем контейнер и удаляем предыдущую карту, если она есть
+  if (exportMapInstance) {
+    exportMapInstance.remove();
+    exportMapInstance = null;
+  }
   tempContainer.innerHTML = '';
   tempContainer.style.display = 'block';
 
-  // Создаём временную карту
-  const exportMap = L.map(tempContainer, {
-    center: bounds.getCenter(),
-    zoom: map.getZoom(),
-    crs: L.CRS.EPSG3857,
-    attributionControl: false,
-    zoomControl: false,
-    scrollWheelZoom: false,
-    dragging: false
-  });
+  try {
+    // Создаём временную карту
+    exportMapInstance = L.map(tempContainer, {
+      center: bounds.getCenter(),
+      zoom: map.getZoom(),
+      crs: L.CRS.EPSG3857,
+      attributionControl: false,
+      zoomControl: false,
+      scrollWheelZoom: false,
+      dragging: false
+    });
 
-  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(exportMap);
-  exportMap.fitBounds(bounds, { padding: [10, 10] });
+    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(exportMapInstance);
+    exportMapInstance.fitBounds(bounds, { padding: [10, 10] });
 
-  // Ждём полной загрузки тайлов
-  exportMap.once('tileloadcomplete', async function() {
-    setTimeout(async function() {
-      try {
-        // Используем html2canvas для создания изображения
-        const canvas = await html2canvas(tempContainer, {
-          scale: 1,
-          useCORS: true,
-          logging: false,
-          backgroundColor: '#ffffff',
-          windowWidth: 800,
-          windowHeight: 600,
-          allowTaint: true,
-          preferCanvas: true
-        });
+    // Ждём полной загрузки тайлов
+    exportMapInstance.once('tileloadcomplete', async function() {
+      setTimeout(async function() {
+        try {
+          // Используем html2canvas для создания изображения
+          const canvas = await html2canvas(tempContainer, {
+            scale: 1,
+            useCORS: true,
+            logging: false,
+            backgroundColor: '#ffffff',
+            windowWidth: 800,
+            windowHeight: 600,
+            allowTaint: true,
+            preferCanvas: true
+          });
 
-        // Создаём ссылку для скачивания
-        canvas.toBlob((blob) => {
-          if (blob) {
-            const url = URL.createObjectURL(blob);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = `golf-map-${Date.now()}.png`;
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
-            console.log('Файл успешно сохранён');
-          } else {
-            alert('Не удалось сохранить изображение');
+          // Создаём ссылку для скачивания
+          canvas.toBlob((blob) => {
+            if (blob) {
+              const url = URL.createObjectURL(blob);
+              const a = document.createElement('a');
+              a.href = url;
+              a.download = `golf-map-${Date.now()}.png`;
+              document.body.appendChild(a);
+              a.click();
+              document.body.removeChild(a);
+              URL.revokeObjectURL(url);
+              console.log('Файл успешно сохранён');
+            } else {
+              alert('Не удалось сохранить изображение');
+            }
+            // Очищаем временную карту
+            if (exportMapInstance) {
+              exportMapInstance.remove();
+              exportMapInstance = null;
+            }
+            tempContainer.style.display = 'none';
+          }, 'image/png');
+        } catch (canvasError) {
+          console.error('Ошибка при создании canvas:', canvasError);
+          alert('Ошибка при создании изображения: ' + canvasError.message);
+          if (exportMapInstance) {
+            exportMapInstance.remove();
+            exportMapInstance = null;
           }
-          // Очищаем временную карту
-          exportMap.remove();
           tempContainer.style.display = 'none';
-        }, 'image/png');
-      } catch (error) {
-        console.error('Ошибка при сохранении:', error);
-        alert('Ошибка при сохранении изображения: ' + error.message);
-        exportMap.remove();
-        tempContainer.style.display = 'none';
-      }
-    }, 1500); // Задержка для полной загрузки
-  });
+        }
+      }, 1500); // Задержка для полной загрузки
+    });
+  } catch (error) {
+    console.error('Ошибка при инициализации временной карты:', error);
+    alert('Ошибка при сохранении: ' + error.message);
+    tempContainer.style.display = 'none';
+  }
 }
 
 document.addEventListener('DOMContentLoaded', function() {
@@ -137,6 +145,5 @@ document.addEventListener('DOMContentLoaded', function() {
   }).addTo(map);
 
   initCutAreaFunctionality(map);
-  initLoadImageFunctionality(); // Инициализация кнопки загрузки
   document.getElementById('save-png').addEventListener('click', () => saveMapAsPNG(map));
 });
