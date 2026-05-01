@@ -1,18 +1,11 @@
-﻿<!DOCTYPE html>
+<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Картографический редактор для гольфа</title>
-
-  <!-- Подключаем Leaflet CSS -->
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  
-  <!-- Подключаем наши стили -->
   <link rel="stylesheet" href="css/style.css">
-  
-  <!-- Подключаем html2canvas для сохранения PNG -->
-  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 </head>
 <body>
   <header>
@@ -20,24 +13,14 @@
     <div class="controls">
       <button id="cut-area" class="btn">Вырезать участок</button>
       <button id="save-png" class="btn">Сохранить как PNG</button>
-      <button id="load-image" class="btn">Загрузить карту</button>
-      <button id="go-to-editor" class="btn btn-primary">Перейти к редактору</button>
     </div>
   </header>
-
   <main>
-    <!-- Карта -->
     <div id="map"></div>
   </main>
-
-  <!-- Временный контейнер для экспорта -->
   <div id="temp-export-container" style="position: fixed; top: -9999px; left: -9999px; width: 800px; height: 600px;"></div>
-
-  <!-- Подключаем Leaflet JS -->
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
-  <!-- Подключаем наш JS‑код -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
   <script src="js/map.js"></script>
-  <script src="https://unpkg.com/leaflet-image@0.3.1/leaflet-image.min.js"></script>
-
 </body>
 </html>
