@@ -1,9 +1,13 @@
 let globalRectangle = null;
 let exportMapInstance = null; // Храним ссылку на временную карту
 
-
 function initCutAreaFunctionality(map) {
   const cutAreaBtn = document.getElementById('cut-area');
+  if (!cutAreaBtn) {
+    console.error('Кнопка "Вырезать участок" не найдена в DOM');
+    return;
+  }
+
   let isDrawing = false;
   let firstCorner = null;
 
@@ -58,6 +62,12 @@ async function saveMapAsPNG(map) {
 
   const bounds = globalRectangle.getBounds();
   const tempContainer = document.getElementById('temp-export-container');
+
+  if (!tempContainer) {
+    console.error('Контейнер для экспорта не найден');
+    alert('Ошибка: контейнер для экспорта не найден');
+    return;
+  }
 
   // Очищаем контейнер и удаляем предыдущую карту, если она есть
   if (exportMapInstance) {
@@ -139,11 +149,25 @@ async function saveMapAsPNG(map) {
 }
 
 document.addEventListener('DOMContentLoaded', function() {
+  // Проверяем наличие всех элементов перед инициализацией
+  const mapContainer = document.getElementById('map');
+  const saveBtn = document.getElementById('save-png');
+
+  if (!mapContainer) {
+    console.error('Контейнера карты #map не найдено');
+    return;
+  }
+
+  if (!saveBtn) {
+    console.error('Кнопки сохранения #save-png не найдено');
+    return;
+  }
+
   const map = L.map('map').setView([55.751244, 37.618423], 13);
   L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
     attribution: '© OpenStreetMap contributors'
   }).addTo(map);
 
   initCutAreaFunctionality(map);
-  document.getElementById('save-png').addEventListener('click', () => saveMapAsPNG(map));
+  saveBtn.addEventListener('click', () => saveMapAsPNG(map));
 });
