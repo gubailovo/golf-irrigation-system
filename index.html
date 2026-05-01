@@ -5,7 +5,13 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Картографический редактор для гольфа</title>
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
-  <link rel="stylesheet" href="css/style.css">
+  <style>
+    body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+    header { background: #2c3e50; color: white; padding: 20px; text-align: center; }
+    .controls { display: flex; gap: 10px; justify-content: center; margin: 15px 0; }
+    .btn { padding: 10px 20px; border: none; border-radius: 5px; background: #3498db; color: white; cursor: pointer; }
+    #map { height: 700px; width: 100%; }
+  </style>
 </head>
 <body>
   <header>
@@ -13,15 +19,158 @@
     <div class="controls">
       <button id="cut-area" class="btn">Вырезать участок</button>
       <button id="save-png" class="btn">Сохранить как PNG</button>
-      <button id="load-image" class="btn">Загрузить карту</button>
     </div>
   </header>
   <main>
     <div id="map"></div>
   </main>
   <div id="temp-export-container" style="position: fixed; top: -9999px; left: -9999px; width: 800px; height: 600px;"></div>
+
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
   <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
-  <script src="js/map.js"></script>
+  <script>
+    let globalRectangle = null;
+    let exportMapInstance = null;
+
+    function initCutAreaFunctionality(map) {
+      const cutAreaBtn = document.getElementById('cut-area');
+      let isDrawing = false;
+      let firstCorner = null;
+
+      cutAreaBtn.addEventListener('click', function() {
+        if (isDrawing) {
+          isDrawing = false;
+          firstCorner = null;
+          cutAreaBtn.textContent = 'Вырезать участок';
+          if (globalRectangle) {
+            map.removeLayer(globalRectangle);
+            globalRectangle = null;
+          }
+          return;
+        }
+
+        isDrawing = true;
+        cutAreaBtn.textContent = 'Завершить выделение';
+        alert('Кликните на карте для установки первого угла прямоугольника');
+      });
+
+      map.on('click', function(e) {
+        if (!isDrawing) return;
+
+        if (!firstCorner) {
+          firstCorner = e.latlng;
+          return;
+        }
+
+        const secondCorner = e.latlng;
+        if (globalRectangle) map.removeLayer(globalRectangle);
+
+        globalRectangle = L.rectangle([
+          [firstCorner.lat, firstCorner.lng],
+          [secondCorner.lat, secondCorner.lng]
+        ], {
+          color: '#FF0000',
+          weight: 2,
+          fillOpacity: 0.1
+        }).addTo(map);
+
+        isDrawing = false;
+        firstCorner = null;
+        cutAreaBtn.textContent = 'Вырезать участок';
+      });
+    }
+
+    async function saveMapAsPNG(map) {
+      if (!globalRectangle) {
+        alert('Сначала выделите участок на карте!');
+        return;
+      }
+
+      const bounds = globalRectangle.getBounds();
+      const tempContainer = document.getElementById('temp-export-container');
+
+      if (exportMapInstance) {
+        exportMapInstance.remove();
+        exportMapInstance = null;
+      }
+      tempContainer.innerHTML = '';
+      tempContainer.style.display = 'block';
+
+      try {
+        exportMapInstance = L.map(tempContainer, {
+          center: bounds.getCenter(),
+          zoom: map.getZoom(),
+          crs: L.CRS.EPSG3857,
+          attributionControl: false,
+          zoomControl: false,
+          scrollWheelZoom: false,
+          dragging: false
+        });
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(exportMapInstance);
+        exportMapInstance.fitBounds(bounds, { padding: [10, 10] });
+
+        exportMapInstance.once('tileloadcomplete', async function() {
+          setTimeout(async function() {
+            try {
+              const canvas = await html2canvas(tempContainer, {
+                scale: 1,
+                useCORS: true,
+                logging: false,
+                backgroundColor: '#ffffff',
+                windowWidth: 800,
+                windowHeight: 600,
+                allowTaint: true,
+                preferCanvas: true
+              });
+
+              canvas.toBlob((blob) => {
+                if (blob) {
+                  const url = URL.createObjectURL(blob);
+                  const a = document.createElement('a');
+                  a.href = url;
+                  a.download = `golf-map-${Date.now()}.png`;
+                  document.body.appendChild(a);
+                  a.click();
+                  document.body.removeChild(a);
+                  URL.revokeObjectURL(url);
+                  console.log('Файл успешно сохранён');
+                } else {
+                  alert('Не удалось сохранить изображение');
+                }
+                if (exportMapInstance) {
+                  exportMapInstance.remove();
+                  exportMapInstance = null;
+                }
+                tempContainer.style.display = 'none';
+              }, 'image/png');
+            } catch (canvasError) {
+              console.error('Ошибка при создании canvas:', canvasError);
+              alert('Ошибка при создании изображения: ' + canvasError.message);
+              if (exportMapInstance) {
+                exportMapInstance.remove();
+                exportMapInstance = null;
+              }
+              tempContainer.style.display = 'none';
+            }
+          }, 2000);
+        });
+      } catch (error) {
+        console.error('Ошибка при инициализации временной карты:', error);
+        alert('Ошибка при сохранении: ' + error.message);
+        tempContainer.style.display = 'none';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', function() {
+      const map = L.map('map').setView([55.751244, 37.618423], 13);
+      L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+        attribution: '© OpenStreetMap contributors'
+      }).addTo(map);
+
+      initCutAreaFunctionality(map);
+      document.getElementById('save-png').addEventListener('click', () => saveMapAsPNG(map));
+    });
+  </script>
 </body>
 </html>
